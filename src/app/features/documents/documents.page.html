@@ -1,0 +1,195 @@
+<section class="page">
+  <header class="page-header">
+    <h1>Documentos</h1>
+    <button class="btn btn-secondary" (click)="refresh()" [disabled]="loading()">
+      Atualizar
+    </button>
+  </header>
+
+  @if (!hasCondo()) {
+    <div class="alert alert-warn">
+      Selecione organização e condomínio antes (em <strong>Organizações</strong> e <strong>Condomínios</strong>).
+    </div>
+  }
+
+  <app-partner-error [error]="error()"></app-partner-error>
+
+  <div class="grid">
+    <form class="card form" (submit)="$event.preventDefault(); submit()">
+      <h2>Enviar documento</h2>
+
+      <label>
+        <span>Condomínio</span>
+        <input
+          type="text"
+          [value]="currentCondoName() || 'Nenhum'"
+          disabled
+        />
+      </label>
+
+      <label>
+        <span>Nome (opcional)</span>
+        <input
+          type="text"
+          [ngModel]="form().name"
+          name="name"
+          (ngModelChange)="updateName($event)"
+          [disabled]="!hasCondo()"
+        />
+      </label>
+
+      <label>
+        <span>Arquivo(s) (máx. 200 MB cada)</span>
+        <input
+          type="file"
+          multiple
+          (change)="onFileChange($event)"
+          [disabled]="!hasCondo()"
+        />
+      </label>
+
+      @if (form().files.length) {
+        <p class="muted">{{ form().files.length }} arquivo(s) selecionado(s)</p>
+      }
+
+      <div class="form-actions">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="loading() || !hasCondo() || form().files.length === 0"
+        >
+          Enviar
+        </button>
+        @if (form().files.length) {
+          <button type="button" class="btn" (click)="cancel()">Limpar</button>
+        }
+      </div>
+    </form>
+
+    <div class="card list">
+      <h2>Lista</h2>
+      @if (!hasCondo()) {
+        <p class="muted">Aguardando seleção de condomínio.</p>
+      } @else if (loading() && items().length === 0) {
+        <p class="muted">Carregando...</p>
+      } @else if (items().length === 0) {
+        <p class="muted">Nenhum documento neste condomínio.</p>
+      } @else {
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Tipo</th>
+              <th>Status</th>
+              <th>ID</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.documentId) {
+              @if (editingId() === item.documentId) {
+                <tr class="edit-row">
+                  <td colspan="5">
+                    <div class="edit-grid">
+                      <label>
+                        <span>Nome</span>
+                        <input
+                          type="text"
+                          [ngModel]="editForm().name"
+                          name="edit-name-{{ item.documentId }}"
+                          (ngModelChange)="updateEditField('name', $event)"
+                        />
+                      </label>
+                      <label>
+                        <span>Condomínio</span>
+                        <select
+                          [ngModel]="editForm().condominiumId"
+                          name="edit-condo-{{ item.documentId }}"
+                          (ngModelChange)="updateEditField('condominiumId', $event)"
+                        >
+                          @for (c of condoOptions(); track c.condominiumId) {
+                            <option [value]="c.condominiumId">{{ c.name }}</option>
+                          }
+                        </select>
+                      </label>
+                      <div class="edit-actions">
+                        <button class="btn btn-tiny btn-primary" (click)="saveEdit(item)" [disabled]="loading()">
+                          Salvar
+                        </button>
+                        <button class="btn btn-tiny" (click)="cancelEdit()">
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              } @else {
+<tr>
+                <td>{{ item.name || '(sem nome)' }}</td>
+                <td>{{ item.documentType }} ({{ item.documentTypeId }})</td>
+                <td>{{ item.documentStatus }} ({{ item.documentStatusId }})</td>
+                <td><code>{{ item.documentId }}</code></td>
+                  <td class="actions">
+                    <button class="btn btn-tiny" (click)="showDetails(item)">Detalhes</button>
+                    <button class="btn btn-tiny" (click)="startEdit(item)">Editar</button>
+                    <button class="btn btn-tiny btn-danger" (click)="remove(item)">Excluir</button>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+
+        @if (totalItems() > 0) {
+          <div class="pagination">
+            <span class="muted">
+              Página {{ page() }} de {{ totalPages() }} · {{ totalItems() }} item(ns)
+            </span>
+            <div class="pagination-actions">
+              <label class="page-size">
+                <span>Tamanho:</span>
+                <select
+                  [ngModel]="pageSize()"
+                  name="doc-page-size"
+                  (ngModelChange)="changePageSize(+$event)"
+                >
+                  @for (size of pageSizeOptions; track size) {
+                    <option [ngValue]="size">{{ size }}</option>
+                  }
+                </select>
+              </label>
+              <button
+                class="btn btn-tiny"
+                (click)="prevPage()"
+                [disabled]="page() <= 1 || loading()"
+              >
+                Anterior
+              </button>
+              <button
+                class="btn btn-tiny"
+                (click)="nextPage()"
+                [disabled]="page() >= totalPages() || loading()"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        }
+      }
+
+      @if (details(); as d) {
+        <div class="details-panel">
+          <h3>Detalhes do documento</h3>
+          <dl>
+            <dt>ID</dt><dd><code>{{ d.documentId }}</code></dd>
+            <dt>Nome</dt><dd>{{ d.name || '(sem nome)' }}</dd>
+            <dt>Condomínio</dt><dd>{{ condoNameById(d.condominiumId) }} <code>({{ d.condominiumId }})</code></dd>
+            <dt>Tipo</dt><dd>{{ d.documentType }} ({{ d.documentTypeId }})</dd>
+            <dt>Status</dt><dd>{{ d.documentStatus }} ({{ d.documentStatusId }})</dd>
+          </dl>
+          <button class="btn btn-tiny" (click)="closeDetails()">Fechar</button>
+        </div>
+      }
+    </div>
+  </div>
+</section>

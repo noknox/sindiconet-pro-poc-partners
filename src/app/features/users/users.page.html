@@ -1,0 +1,175 @@
+<section class="page">
+  <header class="page-header">
+    <h1>Usuários</h1>
+    <button class="btn btn-secondary" (click)="refresh()" [disabled]="loading()">
+      Atualizar
+    </button>
+  </header>
+
+  @if (!hasContext()) {
+    <div class="alert alert-warn">
+      Selecione uma organização em <strong>Organizações</strong> antes de sincronizar usuários.
+    </div>
+  } @else if (reason() === 'select_user') {
+    <div class="alert alert-warn">
+      Selecione um usuário abaixo (botão <strong>Usar</strong>) para liberar o acesso ao SindicoNet IA.
+    </div>
+  }
+
+  @if (error()) {
+    <app-partner-error [error]="error()"></app-partner-error>
+  }
+
+  <div class="grid">
+    <form class="card form" (submit)="$event.preventDefault(); submit()">
+      <h2>{{ editingId() ? 'Editar usuário' : 'Novo usuário' }}</h2>
+
+      <label>
+        <span>Organização</span>
+        <input
+          type="text"
+          [value]="currentOrgName() || 'Nenhuma'"
+          disabled
+        />
+      </label>
+
+      <label>
+        <span>Nome</span>
+        <input
+          type="text"
+          [ngModel]="form().name"
+          name="name"
+          (ngModelChange)="updateField('name', $event)"
+          [disabled]="!hasContext()"
+        />
+      </label>
+
+      <label>
+        <span>E-mail</span>
+        <input
+          type="email"
+          [ngModel]="form().email"
+          name="email"
+          (ngModelChange)="updateField('email', $event)"
+          [disabled]="!!editingId()"
+        />
+      </label>
+
+      <div class="row">
+        <label>
+          <span>CPF</span>
+          <input
+            type="text"
+            [ngModel]="form().cpf"
+            name="cpf"
+            (ngModelChange)="updateField('cpf', $event)"
+            [disabled]="!!editingId()"
+          />
+        </label>
+        <label>
+          <span>Role</span>
+          <input
+            type="text"
+            [ngModel]="roleAsText(form().role ?? 0)"
+            name="role"
+            (ngModelChange)="updateRoleText($event)"
+          />
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="loading() || !hasContext()">
+          {{ editingId() ? 'Salvar alterações' : 'Criar' }}
+        </button>
+        @if (editingId()) {
+          <button type="button" class="btn" (click)="cancelEdit()">Cancelar</button>
+        }
+      </div>
+    </form>
+
+    <div class="card list">
+      <h2>Lista</h2>
+      @if (!hasContext()) {
+        <p class="muted">Aguardando seleção de organização.</p>
+      } @else if (loading() && items().length === 0) {
+        <p class="muted">Carregando...</p>
+      } @else if (items().length === 0) {
+        <p class="muted">Nenhum usuário nesta organização.</p>
+      } @else {
+        <table>
+          <thead>
+            <tr>
+              <th>Contexto</th>
+              <th>Nome</th>
+              <th>E-mail</th>
+              <th>CPF</th>
+              <th>Role</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.userId) {
+              <tr [class.selected]="isContext(item)">
+                <td>
+                  <button
+                    class="btn btn-tiny"
+                    [class.btn-primary]="isContext(item)"
+                    [class.btn-secondary]="!isContext(item)"
+                    (click)="selectContext(item)"
+                    [disabled]="isContext(item)"
+                  >
+                    {{ isContext(item) ? '✓' : 'Usar' }}
+                  </button>
+                </td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.email }}</td>
+                <td>{{ item.cpf || '—' }}</td>
+                <td>{{ roleAsText(item.role) }}</td>
+                <td class="actions">
+                  <button class="btn btn-tiny" (click)="startEdit(item)">Editar</button>
+                  <button class="btn btn-tiny btn-danger" (click)="remove(item)">Excluir</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (totalItems() > 0) {
+          <div class="pagination">
+            <span class="muted">
+              Página {{ page() }} de {{ totalPages() }} · {{ totalItems() }} item(ns)
+            </span>
+            <div class="pagination-actions">
+              <label class="page-size">
+                <span>Tamanho:</span>
+                <select
+                  [ngModel]="pageSize()"
+                  name="user-page-size"
+                  (ngModelChange)="changePageSize(+$event)"
+                >
+                  @for (size of pageSizeOptions; track size) {
+                    <option [ngValue]="size">{{ size }}</option>
+                  }
+                </select>
+              </label>
+              <button
+                class="btn btn-tiny"
+                (click)="prevPage()"
+                [disabled]="page() <= 1 || loading()"
+              >
+                Anterior
+              </button>
+              <button
+                class="btn btn-tiny"
+                (click)="nextPage()"
+                [disabled]="page() >= totalPages() || loading()"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</section>

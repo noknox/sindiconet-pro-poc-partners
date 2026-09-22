@@ -1,0 +1,212 @@
+<section class="page">
+  <header class="page-header">
+    <h1>Condomínios</h1>
+    <button class="btn btn-secondary" (click)="refresh()" [disabled]="loading()">
+      Atualizar
+    </button>
+  </header>
+
+  @if (!hasContext()) {
+    <div class="alert alert-warn">
+      Selecione uma organização em <strong>Organizações</strong> antes de sincronizar condomínios.
+    </div>
+  }
+
+  @if (error()) {
+    <app-partner-error [error]="error()"></app-partner-error>
+  }
+
+  <div class="grid">
+    <form class="card form" (submit)="$event.preventDefault(); submit()">
+      <h2>{{ editingId() ? 'Editar condomínio' : 'Novo condomínio' }}</h2>
+
+      <label>
+        <span>Organização</span>
+        <input
+          type="text"
+          [value]="currentOrgName() || 'Nenhuma'"
+          disabled
+        />
+      </label>
+
+      <label>
+        <span>Nome do condomínio</span>
+        <input
+          type="text"
+          [ngModel]="form().name"
+          name="name"
+          (ngModelChange)="updateField('name', $event)"
+          [disabled]="!hasContext()"
+        />
+      </label>
+
+      <div class="row">
+        <label>
+          <span>CEP</span>
+          <input
+            type="text"
+            [ngModel]="form().zipCode"
+            name="zipCode"
+            (ngModelChange)="updateField('zipCode', $event)"
+            [disabled]="!hasContext()"
+          />
+        </label>
+        <label>
+          <span>Tipo de construção</span>
+          <input
+            type="text"
+            [ngModel]="buildTypeAsText(form().buildTypeId)"
+            name="buildTypeId"
+            (ngModelChange)="updateBuildTypeText($event)"
+          />
+        </label>
+      </div>
+
+      <div class="row">
+        <label>
+          <span>Endereço</span>
+          <input
+            type="text"
+            [ngModel]="form().address"
+            name="address"
+            (ngModelChange)="updateField('address', $event)"
+          />
+        </label>
+        <label>
+          <span>Número</span>
+          <input
+            type="text"
+            [ngModel]="form().number"
+            name="number"
+            (ngModelChange)="updateField('number', $event)"
+          />
+        </label>
+      </div>
+
+      <div class="row">
+        <label>
+          <span>Bairro</span>
+          <input
+            type="text"
+            [ngModel]="form().borough"
+            name="borough"
+            (ngModelChange)="updateField('borough', $event)"
+          />
+        </label>
+        <label>
+          <span>CNPJ</span>
+          <input
+            type="text"
+            [ngModel]="form().cnpj"
+            name="cnpj"
+            (ngModelChange)="updateField('cnpj', $event)"
+          />
+        </label>
+      </div>
+
+      <label>
+        <span>Descrição</span>
+        <input
+          type="text"
+          [ngModel]="form().description"
+          name="description"
+          (ngModelChange)="updateField('description', $event)"
+        />
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="loading() || !hasContext()">
+          {{ editingId() ? 'Salvar alterações' : 'Criar' }}
+        </button>
+        @if (editingId()) {
+          <button type="button" class="btn" (click)="cancelEdit()">Cancelar</button>
+        }
+      </div>
+    </form>
+
+    <div class="card list">
+      <h2>Lista</h2>
+      @if (!hasContext()) {
+        <p class="muted">Aguardando seleção de organização.</p>
+      } @else if (loading() && items().length === 0) {
+        <p class="muted">Carregando...</p>
+      } @else if (items().length === 0) {
+        <p class="muted">Nenhum condomínio nesta organização.</p>
+      } @else {
+        <table>
+          <thead>
+            <tr>
+              <th>Contexto</th>
+              <th>Nome</th>
+              <th>CEP</th>
+              <th>Endereço</th>
+              <th>Bairro</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.condominiumId) {
+              <tr [class.selected]="isContext(item)">
+                <td>
+                  <button
+                    class="btn btn-tiny"
+                    [class.btn-primary]="isContext(item)"
+                    [class.btn-secondary]="!isContext(item)"
+                    (click)="selectContext(item)"
+                    [disabled]="isContext(item)"
+                  >
+                    {{ isContext(item) ? '✓' : 'Usar' }}
+                  </button>
+                </td>
+                <td>{{ item.name }}</td>
+                <td>{{ item.zipCode }}</td>
+                <td>{{ item.address }} {{ item.number }}</td>
+                <td>{{ item.borough }}</td>
+                <td class="actions">
+                  <button class="btn btn-tiny" (click)="startEdit(item)">Editar</button>
+                  <button class="btn btn-tiny btn-danger" (click)="remove(item)">Excluir</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (totalItems() > 0) {
+          <div class="pagination">
+            <span class="muted">
+              Página {{ page() }} de {{ totalPages() }} · {{ totalItems() }} item(ns)
+            </span>
+            <div class="pagination-actions">
+              <label class="page-size">
+                <span>Tamanho:</span>
+                <select
+                  [ngModel]="pageSize()"
+                  name="condo-page-size"
+                  (ngModelChange)="changePageSize(+$event)"
+                >
+                  @for (size of pageSizeOptions; track size) {
+                    <option [ngValue]="size">{{ size }}</option>
+                  }
+                </select>
+              </label>
+              <button
+                class="btn btn-tiny"
+                (click)="prevPage()"
+                [disabled]="page() <= 1 || loading()"
+              >
+                Anterior
+              </button>
+              <button
+                class="btn btn-tiny"
+                (click)="nextPage()"
+                [disabled]="page() >= totalPages() || loading()"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        }
+      }
+    </div>
+  </div>
+</section>

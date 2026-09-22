@@ -1,0 +1,36 @@
+<nav class="menu">
+  <div class="menu-brand">
+    <span class="brand-text">SindicoNet Partners</span>
+  </div>
+
+  <div class="menu-context">
+    <span class="context-label">Contexto atual</span>
+    @for (level of contextLevels(); track level.label) {
+      <div class="context-row">
+        <span class="context-row-label">{{ level.label }}</span>
+        <span class="context-row-value">{{ level.value }}</span>
+      </div>
+    }
+  </div>
+
+  <ul class="menu-items">
+    @for (item of items; track item.route) {
+      <li>
+        @if (isDisabled(item)) {
+          <span class="menu-link disabled" [title]="item.disabledHint || 'Selecione uma organização antes'">
+            <span class="label">{{ item.label }}</span>
+          </span>
+        } @else {
+          <a
+            class="menu-link"
+            [routerLink]="item.route"
+            routerLinkActive="active"
+            [routerLinkActiveOptions]="{ exact: false }"
+          >
+            <span class="label">{{ item.label }}</span>
+          </a>
+        }
+      </li>
+    }
+  </ul>
+</nav>
