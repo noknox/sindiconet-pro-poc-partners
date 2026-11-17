@@ -68,6 +68,32 @@
   word-break: break-word;
 }
 
+.context-select {
+  width: 100%;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 13px;
+  color: #cfd2da;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.context-select:focus {
+  outline: none;
+  border-color: #505cf0;
+}
+
+.context-select option {
+  color: #1f2330;
+}
+
+.context-row-hint {
+  color: #8a8f9c;
+  font-size: 11px;
+}
+
 .menu-items {
   list-style: none;
   margin: 0;

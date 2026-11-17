@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { PARTNER_CONFIG } from '../../core/config/partner.config';
+import { SyncStateService } from '../../core/partners/sync-state.service';
 import { SindiconetIframeComponent } from '../../shared/sindiconet-iframe/sindiconet-iframe.component';
 
 @Component({
@@ -9,7 +10,7 @@ import { SindiconetIframeComponent } from '../../shared/sindiconet-iframe/sindic
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="iframe-host">
-      <app-sindiconet-iframe [src]="iframeUrl" />
+      <app-sindiconet-iframe [src]="iframeUrl" [condominiumId]="state.condominiumId()" />
     </div>
   `,
   styles: `
@@ -22,5 +23,6 @@ import { SindiconetIframeComponent } from '../../shared/sindiconet-iframe/sindic
 })
 export class SindiconetIaPage {
   private readonly config = inject(PARTNER_CONFIG);
+  readonly state = inject(SyncStateService);
   readonly iframeUrl = this.config.iframeUrl;
 }

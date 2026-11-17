@@ -5,12 +5,34 @@
 
   <div class="menu-context">
     <span class="context-label">Contexto atual</span>
-    @for (level of contextLevels(); track level.label) {
-      <div class="context-row">
-        <span class="context-row-label">{{ level.label }}</span>
-        <span class="context-row-value">{{ level.value }}</span>
-      </div>
-    }
+    <div class="context-row">
+      <span class="context-row-label">Organização</span>
+      <span class="context-row-value">{{ organizationName() ?? '—' }}</span>
+    </div>
+
+    <div class="context-row">
+      <label class="context-row-label" for="context-condo">Condomínio</label>
+      @if (hasOrganization() && condominiums().length) {
+        <select id="context-condo" class="context-select" (change)="onSelectCondominium($event)">
+          <option value="" disabled [selected]="!condominiumId()">Selecione</option>
+          @for (condo of condominiums(); track condo.condominiumId) {
+            <option [value]="condo.condominiumId" [selected]="condo.condominiumId === condominiumId()">
+              {{ condo.name }}
+            </option>
+          }
+        </select>
+        @if (syncStatus()) {
+          <span class="context-row-hint">{{ syncStatus() }}</span>
+        }
+      } @else {
+        <span class="context-row-value">{{ condominiumName() || '—' }}</span>
+      }
+    </div>
+
+    <div class="context-row">
+      <span class="context-row-label">Usuário</span>
+      <span class="context-row-value">{{ userEmail() ?? '—' }}</span>
+    </div>
   </div>
 
   <ul class="menu-items">

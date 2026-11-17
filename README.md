@@ -6,7 +6,11 @@ POC em Angular 18 que serve de **exemplo para ERPs** que precisam se integrar ao
 
 ## ⚠️ Aviso importante: cadastro de origens no backend
 
-Antes de rodar esta POC (ou qualquer integração de ERP), **você precisa informar as origens (domínios + portas) que serão usadas ao administrador do SindicoNet AI** para que sejam cadastradas no backend. **Sem esse cadastro, o iframe não funciona** — a chamada de autenticação é bloqueada com `403 Forbidden` pela tabela de origens permitidas (`sn_PartnerAllowedOrigin`), mesmo que `X-Client-Id` / `X-Client-Secret` estejam corretos.
+Antes de rodar esta POC (ou qualquer integração de ERP), **você precisa informar as origens (domínios + portas) que serão usadas ao administrador do SindicoNet AI** para que sejam liberadas. Sem essa liberação:
+
+- **o iframe não autentica o usuário:** o SindicoNet IA só aceita o token enviado por `postMessage` de origens liberadas;
+- **o navegador bloqueia as chamadas à API Partners** por CORS;
+- **no modo legado** (`X-Client-Id` / `X-Client-Secret`), a API responde `401` quando a origem não está na tabela `sn_PartnerAllowedOrigin` do parceiro.
 
 Origens que precisam ser liberadas:
 
@@ -16,10 +20,10 @@ Origens que precisam ser liberadas:
 Como solicitar:
 
 1. Identifique **todas** as origens que farão chamadas para `https://ai-api-sandbox.sindiconet.com.br` (sandbox) e `https://ai-api.sindiconet.com.br` (produção).
-2. Envie a lista (com protocolo, host e porta) ao administrador do SindicoNet AI pedindo a inclusão na tabela `sn_PartnerAllowedOrigin` do seu parceiro.
+2. Envie a lista (com protocolo, host e porta) ao administrador do SindicoNet AI pedindo a liberação para o seu parceiro.
 3. Aguarde a confirmação **antes** de subir o ambiente.
 
-Enquanto as origens não estiverem liberadas, o fluxo de `/sindiconet-ia` falhará com `403`. Veja a seção **Troubleshooting** abaixo.
+Enquanto as origens não estiverem liberadas, o SindicoNet IA abre sem usuário logado em `/sindiconet-ia`. Veja a seção **Troubleshooting** abaixo.
 
 ## Documentação oficial
 
@@ -30,7 +34,7 @@ Enquanto as origens não estiverem liberadas, o fluxo de `/sindiconet-ia` falhar
 
 - Angular 18 (standalone components, signals, `OnPush`)
 - TypeScript strict
-- `HttpClient` com interceptor funcional que injeta `X-Client-Id` / `X-Client-Secret`
+- `HttpClient` com interceptor funcional que autentica o parceiro: Bearer do Keycloak ou `X-Client-Id` / `X-Client-Secret` (legado)
 - Roteamento lazy por feature
 - CSS puro (sem libs de UI)
 
@@ -56,10 +60,11 @@ Organizações (selecionar) → Usuários (da org)
 2. Edite `src/environments/environment.ts` com:
 
    - `apiBaseUrl` — geralmente `https://ai-api-sandbox.sindiconet.com.br`
-   - `clientId` / `clientSecret` — fornecidos pelo admin do SindicoNet AI
+   - `clientId` / `clientSecret` — fornecidos pelo admin do SindicoNet AI: o client do Keycloak ou as credenciais legadas
+   - `tokenUrl` — endpoint de token do Keycloak; sem ele, a POC usa as credenciais legadas (veja **Autenticação do parceiro**)
    - `iframeUrl` — URL da UI que será embutida (`https://sandbox.sindiconet.com.br/ia/`)
 
-> O arquivo `src/environments/environment.ts` está no `.gitignore`. **Nunca** commite credenciais reais. Para produção, troque o fetch client-side por um proxy reverso ou endpoint server-side que adicione os headers de partner — caso contrário o `clientSecret` fica exposto no bundle JS.
+> O arquivo `src/environments/environment.ts` está no `.gitignore`. **Nunca** commite credenciais reais. Para produção, troque o fetch client-side por um proxy reverso ou endpoint server-side que autentique o parceiro — caso contrário o `clientSecret` fica exposto no bundle JS.
 
 ## Rodar
 
@@ -73,7 +78,20 @@ A aplicação sobe em `https://localhost:3001` com certificado self-signed. Se o
 - Acesse `https://localhost:3001` uma vez e confie no certificado, **ou**
 - Habilite `chrome://flags/#allow-insecure-localhost` (Chrome/Edge).
 
-> **Por que porta 3001 + HTTPS?** O backend do SindicoNet AI aplica uma CORS policy estrita (`AllowEndpoint`) **antes** da policy permissiva `PartnerOrigins`. A lista do `AllowEndpoint` já contém `https://localhost:3001`, mas não `https://localhost:4200`. Além disso, o cookie de autenticação do iframe é `Secure; SameSite=None` — sem HTTPS local o cookie é rejeitado e o fluxo de auth quebra. A origem `https://localhost:3001` precisa estar allowlistada também na tabela `sn_PartnerAllowedOrigin` do parceiro.
+> **Por que porta 3001?** O backend do SindicoNet AI aplica uma CORS policy estrita (`AllowEndpoint`) **antes** da policy permissiva `PartnerOrigins`. A lista do `AllowEndpoint` já contém `https://localhost:3001` e `http://localhost:3001`, mas não `localhost:4200`. O HTTPS é opcional: `npm run start:http` sobe em `http://localhost:3001`, desde que essa origem também esteja liberada no SindicoNet IA.
+
+No modo Keycloak, o `ng serve` encaminha `/auth/realms/...` para o SSO do sandbox (`proxy.conf.json`), porque o Keycloak não libera CORS para o navegador. Para outro ambiente, ajuste o `target` do proxy.
+
+## Autenticação do parceiro
+
+O `partnerAuthInterceptor` autentica todas as chamadas a `/api/partner/` de um destes jeitos, conforme o `environment.ts`:
+
+| Modo | Configuração | O que vai na chamada |
+|---|---|---|
+| Keycloak | `tokenUrl` + `clientId` / `clientSecret` do client no Keycloak | `Authorization: Bearer <token>` |
+| Legado | sem `tokenUrl`; `clientId` / `clientSecret` gerados pela dashboard | `X-Client-Id` / `X-Client-Secret` |
+
+No modo Keycloak, o `PartnerTokenService` pede o token com `client_credentials` e o reaproveita até 30 s antes de vencer. A API aceita os dois modos; a POC usa o que estiver configurado.
 
 ## Como funciona o embed (SindicoNet IA via iframe)
 
@@ -81,42 +99,67 @@ O objetivo do embed é permitir que o usuário do ERP use o SindicoNet IA **sem 
 
 1. **Contexto no ERP.** Antes de abrir o iframe, o ERP precisa ter um usuário SindicoNet AI selecionado como contexto (tela **Usuários** → botão "Usar"). Esse contexto é um `userId` (Guid) e um `email` de um usuário já existente no SindicoNet AI com `IsAccessConfirmed = true`.
 
-2. **Autenticação via API Partners.** Ao navegar para a rota `/sindiconet-ia`, a `sindiconetIaGuard` (`src/app/features/sindiconet-ia/sindiconet-ia.guard.ts`) chama `POST {apiBaseUrl}/api/partner/users/authenticate` enviando `{ userId, email }` no corpo. O backend valida as credenciais do partner via `X-Client-Id` / `X-Client-Secret` (injetados pelo interceptor) e responde `200` setando o cookie `sindiconetaiIdentifier` (`HttpOnly; Secure; SameSite=None; Max-Age=1h`) no domínio da API. A chamada precisa ser feita com `withCredentials: true` para que o navegador aceite o cookie cross-origin.
+2. **Token do usuário.** Ao navegar para a rota `/sindiconet-ia`, a `sindiconetIaGuard` (`src/app/features/sindiconet-ia/sindiconet-ia.guard.ts`) chama `POST {apiBaseUrl}/api/partner/users/authenticate` enviando `{ userId, email }` no corpo, autenticada como parceiro pelo interceptor. A API responde `{ accessToken, tokenType, expiresIn }` (token válido por 15 minutos), e a guarda salva o token no `SyncStateService`.
 
-3. **Renderização do iframe.** A guarda libera a rota e `SindiconetIaPage` monta `<iframe src={iframeUrl}>`. O JS interno do SindicoNet lê o cookie `sindiconetaiIdentifier` e o troca por um JWT próprio chamando `POST /api/auth/identifier-login` — a partir daí o usuário já está logado dentro do iframe.
+3. **Entrega ao iframe.** `SindiconetIaPage` monta `<iframe src={iframeUrl}>`. Ao carregar, o SindicoNet IA envia `sindiconet:embed-ready` à janela pai, e o `SindiconetIframeComponent` responde com `{ type: 'sindiconet:auth-token', token }`. O SindicoNet IA passa a usar esse token como Bearer.
 
-Em resumo, o embed é **uma única chamada autenticada (`/api/partner/users/authenticate`)** que seta um cookie cross-origin, seguida da abertura do `<iframe>` apontando para a UI do SindicoNet. A UI cuida do resto trocando o cookie por um JWT interno.
+4. **Renovação.** Quando o token vence (a API responde `401`), o SindicoNet IA envia `sindiconet:token-request`; o componente chama o `authenticate` de novo e responde com o token novo.
+
+Em resumo, o ERP gera o token do usuário com `/api/partner/users/authenticate` e o entrega ao `<iframe>` por `postMessage`. Em produção, essa chamada deve sair do backend do ERP: só o `accessToken` do usuário chega ao navegador.
 
 ```ts
 // src/app/features/sindiconet-ia/sindiconet-ia.guard.ts (essência)
-const { userId, userEmail } = state;
-if (!userId || !userEmail) return router.createUrlTree(['/users']);
-await firstValueFrom(auth.authenticate(userId, userEmail)); // seta cookie
+const { accessToken } = await firstValueFrom(auth.authenticate(userId, userEmail));
+state.setUserToken(accessToken);
 return true;
+```
+
+```ts
+// resposta ao sindiconet:embed-ready e ao sindiconet:token-request (SindiconetIframeComponent)
+iframe.contentWindow.postMessage({ type: 'sindiconet:auth-token', token: accessToken }, new URL(iframeUrl).origin);
 ```
 
 ```html
 <!-- src/app/features/sindiconet-ia/sindiconet-ia.page.ts -->
-<app-sindiconet-iframe [src]="iframeUrl" />
+<app-sindiconet-iframe [src]="iframeUrl" [condominiumId]="state.condominiumId()" />
 ```
 
 Para detalhes completos de payloads, headers e endpoints, consulte a documentação oficial em https://ai-api-sandbox.sindiconet.com.br/docs/?api=partner-integration.
 
+### Sincronizar o condomínio selecionado no ERP
+
+O condomínio ativo no ERP pode ser repassado ao SindicoNet IA, que o seleciona nos dropdowns do chat e dos arquivos do condomínio. O identificador é o `condominiumId` (Guid) retornado pela API Partners. Também é aceito o `externalId` do próprio ERP.
+
+1. **Condomínio inicial:** é enviado na URL do iframe: `{iframeUrl}?condominiumId={condominiumId}` (ou `?condominiumExternalId={externalId}`).
+2. **Trocas posteriores:** são enviadas por `postMessage`, sem recarregar o iframe:
+
+   ```ts
+   iframe.contentWindow.postMessage(
+     { type: 'sindiconet:select-condominium', condominiumId },
+     new URL(iframeUrl).origin
+   );
+   ```
+
+3. **Confirmação:** o SindicoNet IA responde ao ERP com `{ type: 'sindiconet:condominium-selected', condominiumId, success }`. `success: false` indica que o condomínio não existe ou que o usuário não tem acesso a ele.
+
+Na POC, `SindiconetIframeComponent` recebe `[condominiumId]`, faz os dois envios e repassa a confirmação ao menu. Para simular a troca, use o seletor "Condomínio" na seção **Contexto atual** do menu lateral; a confirmação aparece abaixo dele.
+
 ## Endpoints utilizados (singulares)
 
-Todas as chamadas passam pelo interceptor `partnerAuthInterceptor`, que adiciona `X-Client-Id` e `X-Client-Secret` em **toda** requisição **exceto** `/api/partner/users/authenticate`.
+Todas as chamadas a `/api/partner/` passam pelo interceptor `partnerAuthInterceptor`, que adiciona a autenticação do parceiro, inclusive em `/api/partner/users/authenticate`.
 
 | Entidade | Endpoints |
 |---|---|
 | Auth | `POST /api/partner/users/authenticate` |
-| Organizations | `POST/GET/PUT/DELETE /api/partner/organizations[/{id}]` |
-| Users | `POST/GET/PUT/DELETE /api/partner/users[/{id}]` · `GET /api/partner/organizations/{orgId}/users` |
-| Condominiums | `POST/GET/PUT/DELETE /api/partner/condominiums[/{id}]` · `GET /api/partner/organizations/{orgId}/condominiums` |
-| Documents | `POST /api/partner/documents` (multipart, max 200 MB) · `GET /api/partner/documents` · `GET /api/partner/condominiums/{id}/documents` · `DELETE /api/partner/documents/{id}` |
+| Organizations | `GET/POST /api/partner/organizations` · `GET/PUT/DELETE /api/partner/organizations/{organizationId}` |
+| Users | `GET/POST /api/partner/organization/{organizationId}/users` · `GET/PUT/DELETE .../users/{userId}` |
+| Condominiums | `GET/POST /api/partner/organization/{organizationId}/condominiums` · `GET/PUT/DELETE .../condominiums/{condominiumId}` |
+| Documents | `GET/POST /api/partner/organization/{organizationId}/condominium/{condominiumId}/documents` (multipart, max 200 MB) · `POST .../documents/bulk` · `GET/PUT/DELETE .../documents/{documentId}` |
 
 ## Estrutura
 
 ```
+proxy.conf.json               ← proxy do ng serve para o Keycloak (modo Keycloak)
 src/
   environments/
     environment.ts            ← GITIGNORED, com credenciais reais (preencher localmente)
@@ -129,16 +172,17 @@ src/
       config/partner.config.ts          ← InjectionToken<PartnerConfig>
       partners/
         partner.types.ts                ← DTOs
-        partner-auth.interceptor.ts     ← X-Client-Id + X-Client-Secret
-        authenticate.service.ts         ← /api/partner/users/authenticate
+        partner-auth.interceptor.ts     ← Bearer do Keycloak ou X-Client-Id + X-Client-Secret
+        partner-token.service.ts        ← token do Keycloak (client_credentials), com cache
+        authenticate.service.ts         ← /api/partner/users/authenticate (token do usuário)
         organization.service.ts
         user.service.ts
         condominium.service.ts
         document.service.ts
-        sync-state.service.ts           ← Signals compartilhados (org/condo/user)
+        sync-state.service.ts           ← Signals compartilhados (org/condo/user/token)
         crud.service.ts                 ← loading/error wrapper + describePartnerError
     shared/
-      sindiconet-iframe/sindiconet-iframe.component.ts
+      sindiconet-iframe/sindiconet-iframe.component.ts  ← iframe + postMessage (token e condomínio)
     features/
       menu/menu.component.{ts,html,css}
       sindiconet-ia/
@@ -153,10 +197,9 @@ src/
 
 ## Troubleshooting
 
-- **Iframe carrega mas o usuário fica deslogado.** Confirme que a origem do dev server está em `sn_PartnerAllowedOrigin` no backend e que o cookie `sindiconetaiIdentifier` foi setado no domínio da API (DevTools → Application → Cookies). Se o cookie está lá mas o iframe continua deslogado, investigue a chamada interna `POST /api/auth/identifier-login` na aba Network.
-- **CORS error no console.** A origem rodando não está na CORS policy `AllowEndpoint` do backend. Use `https://localhost:3001` (já allowlistada) ou peça ao admin para liberar sua origem.
-- **401 em `/api/partner/*`.** `X-Client-Id` / `X-Client-Secret` inválidos, ou partner inativo no banco.
-- **403.** Origem não allowlistada em `sn_PartnerAllowedOrigin`.
+- **Iframe abre sem usuário logado.** O token não chegou ao iframe. Confirme que a origem do dev server está liberada no SindicoNet IA e, na aba Network, que `POST /api/partner/users/authenticate` respondeu `200` com o `accessToken`.
+- **CORS error no console.** A origem rodando não está na CORS policy `AllowEndpoint` do backend. Use `localhost:3001` (já allowlistada) ou peça ao admin para liberar sua origem. No modo Keycloak, se o erro for na chamada de token, ela não passou pelo proxy: o `tokenUrl` precisa ser o caminho relativo `/auth/realms/...`.
+- **401 em `/api/partner/*`.** Credenciais que não batem com o modo configurado (com `tokenUrl`, use o client do Keycloak; sem `tokenUrl`, as credenciais legadas), parceiro inativo ou, no modo Keycloak, client sem vínculo com o parceiro no backend. No modo legado, também acontece quando a origem não está em `sn_PartnerAllowedOrigin`.
 
 ## Build de produção
 
@@ -164,4 +207,4 @@ src/
 npm run build
 ```
 
-Gera `dist/poc-partners/browser/`. **Atenção:** as credenciais do `environment.ts` são empacotadas no bundle JS — em produção real, use um proxy reverso ou endpoint server-side que adicione os headers `X-Client-Id` / `X-Client-Secret` antes de chegar na API Partners.
+Gera `dist/poc-partners/browser/`. **Atenção:** as credenciais do `environment.ts` são empacotadas no bundle JS — em produção real, autentique o parceiro num proxy reverso ou endpoint server-side antes de chegar na API Partners. O build estático não tem o proxy do `ng serve`, então o modo Keycloak só funciona com esse endpoint.

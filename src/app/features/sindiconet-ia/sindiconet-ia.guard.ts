@@ -18,7 +18,8 @@ export const sindiconetIaGuard: CanActivateFn = async () => {
   }
 
   try {
-    await firstValueFrom(auth.authenticate(userId, userEmail));
+    const { accessToken } = await firstValueFrom(auth.authenticate(userId, userEmail));
+    state.setUserToken(accessToken);
     return true;
   } catch (err) {
     const reason = err instanceof HttpErrorResponse && err.status === 401 ? 'auth_failed' : 'network';

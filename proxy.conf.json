@@ -1,0 +1,7 @@
+{
+  "/auth/realms": {
+    "target": "https://sso-sandbox.sindiconet.com.br",
+    "secure": true,
+    "changeOrigin": true
+  }
+}

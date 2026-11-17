@@ -88,6 +88,12 @@ export interface AuthenticateRequest {
   email: string;
 }
 
+export interface AuthenticateResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresIn: number;
+}
+
 export interface PaginatedResult<T> {
   items: T[];
   page: number;
